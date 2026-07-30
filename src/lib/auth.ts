@@ -39,3 +39,17 @@ export async function getCurrentUsuario() {
     include: { empresa: true },
   });
 }
+
+/**
+ * Igual que getCurrentUsuario(), pero lanza si no hay sesión. Server
+ * Actions son alcanzables por POST directo (no solo desde la UI), así que
+ * cada una debe verificar auth por su cuenta en vez de confiar en que el
+ * layout ya lo hizo.
+ */
+export async function requireUsuario() {
+  const usuario = await getCurrentUsuario();
+  if (!usuario) {
+    throw new Error("No autenticado");
+  }
+  return usuario;
+}
