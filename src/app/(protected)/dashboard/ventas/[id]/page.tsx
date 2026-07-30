@@ -6,6 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { VentaEstadoSelect } from "@/components/venta-estado-select";
 import { NewPlanPagoForm } from "@/components/new-plan-pago-form";
 import { MarcarCuotaPagadaButton } from "@/components/marcar-cuota-pagada-button";
+import { MarcarComisionPagadaButton } from "@/components/marcar-comision-pagada-button";
+import { createComision } from "./actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { FORMA_PAGO_LABEL } from "@/lib/venta-labels";
 import {
   Table,
@@ -31,6 +36,7 @@ export default async function VentaDetailPage({
       lote: { include: { manzana: { include: { proyecto: true } } } },
       usuario: true,
       planPago: { include: { cuotas: { orderBy: { numero: "asc" } } } },
+      comisiones: { include: { usuario: true } },
     },
   });
 
@@ -139,6 +145,51 @@ export default async function VentaDetailPage({
                 })}
               </TableBody>
             </Table>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-lg font-medium">Comisión</h2>
+        {venta.comisiones.length === 0 ? (
+          <form action={createComision} className="flex flex-col gap-4">
+            <input type="hidden" name="ventaId" value={venta.id} />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="porcentaje">Porcentaje de comisión</Label>
+              <Input
+                id="porcentaje"
+                name="porcentaje"
+                type="number"
+                step="0.1"
+                placeholder="Ej: 3"
+                required
+              />
+            </div>
+            <Button type="submit" className="w-fit">
+              Generar comisión
+            </Button>
+          </form>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {venta.comisiones.map((c) => (
+              <div
+                key={c.id}
+                className="flex items-center justify-between rounded-lg border p-3 text-sm"
+              >
+                <div>
+                  <p className="font-medium">{c.usuario.nombre}</p>
+                  <p className="text-zinc-500">
+                    {c.porcentaje.toString()}% ·{" "}
+                    {Number(c.monto).toLocaleString("es-CL")}
+                  </p>
+                </div>
+                {c.estado === "pagada" ? (
+                  <Badge variant="secondary">Pagada</Badge>
+                ) : (
+                  <MarcarComisionPagadaButton comisionId={c.id} />
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>

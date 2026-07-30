@@ -85,3 +85,47 @@ export async function marcarCuotaPagada(cuotaId: string) {
 
   revalidatePath(`/dashboard/ventas/${cuota.planPago.ventaId}`);
 }
+
+export async function createComision(formData: FormData) {
+  const usuario = await requireUsuario();
+  const ventaId = formData.get("ventaId") as string;
+  const porcentaje = Number(formData.get("porcentaje"));
+
+  const venta = await prisma.venta.findFirst({
+    where: { id: ventaId, empresaId: usuario.empresaId },
+  });
+  if (!venta) throw new Error("Venta no encontrada");
+  if (!porcentaje) throw new Error("Falta el porcentaje de comisión");
+
+  const monto = (Number(venta.precioVenta) * porcentaje) / 100;
+
+  await prisma.comision.create({
+    data: {
+      empresaId: usuario.empresaId,
+      ventaId,
+      usuarioId: venta.usuarioId ?? usuario.id,
+      porcentaje,
+      monto,
+    },
+  });
+
+  revalidatePath(`/dashboard/ventas/${ventaId}`);
+  revalidatePath("/dashboard/comisiones");
+}
+
+export async function marcarComisionPagada(comisionId: string) {
+  const usuario = await requireUsuario();
+
+  const comision = await prisma.comision.findFirst({
+    where: { id: comisionId, empresaId: usuario.empresaId },
+  });
+  if (!comision) throw new Error("Comisión no encontrada");
+
+  await prisma.comision.update({
+    where: { id: comisionId },
+    data: { estado: "pagada", fechaPago: new Date() },
+  });
+
+  revalidatePath(`/dashboard/ventas/${comision.ventaId}`);
+  revalidatePath("/dashboard/comisiones");
+}

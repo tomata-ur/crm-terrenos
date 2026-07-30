@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/proyectos", label: "Proyectos" },
   { href: "/dashboard/leads", label: "Leads" },
   { href: "/dashboard/ventas", label: "Ventas" },
+  { href: "/dashboard/comisiones", label: "Comisiones" },
 ];
 
 export default async function DashboardLayout({
