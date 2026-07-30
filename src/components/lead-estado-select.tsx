@@ -8,40 +8,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { updateLoteEstado } from "@/app/(protected)/dashboard/proyectos/[id]/actions";
-import type { EstadoLote } from "@/generated/prisma/enums";
+import { updateLeadEstado } from "@/app/(protected)/dashboard/leads/actions";
+import { ETAPAS } from "@/lib/pipeline";
+import type { EstadoPipeline } from "@/generated/prisma/enums";
 
-const ESTADOS: { value: EstadoLote; label: string }[] = [
-  { value: "disponible", label: "Disponible" },
-  { value: "reservado", label: "Reservado" },
-  { value: "vendido", label: "Vendido" },
-];
-
-export function LoteEstadoSelect({
-  loteId,
+export function LeadEstadoSelect({
+  leadId,
   estado,
 }: {
-  loteId: string;
-  estado: EstadoLote;
+  leadId: string;
+  estado: EstadoPipeline;
 }) {
   const [isPending, startTransition] = useTransition();
 
   return (
     <Select
-      items={ESTADOS}
+      items={ETAPAS}
       defaultValue={estado}
       disabled={isPending}
       onValueChange={(value) => {
         startTransition(async () => {
-          await updateLoteEstado(loteId, value as EstadoLote);
+          await updateLeadEstado(leadId, value as EstadoPipeline);
         });
       }}
     >
-      <SelectTrigger className="w-36">
+      <SelectTrigger size="sm" className="w-full">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {ESTADOS.map((e) => (
+        {ETAPAS.map((e) => (
           <SelectItem key={e.value} value={e.value}>
             {e.label}
           </SelectItem>
