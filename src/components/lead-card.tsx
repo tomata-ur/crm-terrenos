@@ -1,18 +1,14 @@
+import Link from "next/link";
 import { MessageCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LeadEstadoSelect } from "@/components/lead-estado-select";
 import { toWhatsappLink } from "@/lib/whatsapp";
+import { CATEGORIA_LABEL } from "@/lib/lead-labels";
 import type {
   CategoriaLead,
   EstadoPipeline,
 } from "@/generated/prisma/enums";
-
-const CATEGORIA_LABEL: Record<CategoriaLead, string> = {
-  comunidad: "Comunidad",
-  individual_credito: "Crédito individual",
-  contado_pie_alto: "Contado / pie alto",
-};
 
 export function LeadCard({
   lead,
@@ -29,7 +25,12 @@ export function LeadCard({
     <Card size="sm">
       <CardContent className="flex flex-col gap-2">
         <div className="flex items-start justify-between gap-2">
-          <p className="font-medium">{lead.nombre}</p>
+          <Link
+            href={`/dashboard/leads/${lead.id}`}
+            className="font-medium hover:underline"
+          >
+            {lead.nombre}
+          </Link>
           {lead.telefono && (
             <a
               href={toWhatsappLink(lead.telefono)}
