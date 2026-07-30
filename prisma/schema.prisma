@@ -1,0 +1,368 @@
+// Prisma schema — CRM Venta de Terrenos
+// Every top-level table carries empresaId (tenant) directly, even though
+// the MVP only ever has a single empresa row. This is intentional: it's
+// what lets this codebase become a real multi-tenant SaaS later without
+// a data migration.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RolUsuario {
+  admin
+  corredora
+}
+
+enum EstadoLote {
+  disponible
+  reservado
+  vendido
+}
+
+enum CategoriaLead {
+  comunidad
+  individual_credito
+  contado_pie_alto
+}
+
+enum CapacidadCredito {
+  pre_aprobado
+  por_evaluar
+  rechazado
+}
+
+enum PlazoEstimado {
+  inmediato
+  tres_meses
+  seis_meses
+  mas_de_seis_meses
+}
+
+enum EstadoPipeline {
+  nuevo
+  contactado
+  calificado
+  visita_agendada
+  visita_realizada
+  negociacion
+  cerrado
+  perdido
+}
+
+enum TipoSeguimiento {
+  whatsapp
+  llamada
+  email
+  visita
+}
+
+enum EstadoReserva {
+  activa
+  convertida
+  vencida
+  cancelada
+}
+
+enum FormaPago {
+  contado
+  pie_y_cuotas
+  credito_hipotecario
+}
+
+enum EstadoVenta {
+  promesa
+  escriturada
+  anulada
+}
+
+enum EstadoCuota {
+  pendiente
+  pagada
+  atrasada
+}
+
+enum EstadoComision {
+  pendiente
+  pagada
+}
+
+model Empresa {
+  id        String   @id @default(cuid())
+  nombre    String
+  rut       String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  usuarios     Usuario[]
+  proyectos    Proyecto[]
+  manzanas     Manzana[]
+  lotes        Lote[]
+  leads        Lead[]
+  seguimientos Seguimiento[]
+  clientes     Cliente[]
+  reservas     Reserva[]
+  ventas       Venta[]
+  planesPago   PlanPago[]
+  cuotas       Cuota[]
+  comisiones   Comision[]
+
+  @@map("empresas")
+}
+
+model Usuario {
+  id         String     @id @default(cuid())
+  empresaId  String     @map("empresa_id")
+  authUserId String?    @unique @map("auth_user_id")
+  nombre     String
+  email      String     @unique
+  rol        RolUsuario @default(admin)
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  proyectosCreados Proyecto[]    @relation("ProyectoCreadoPor")
+  leadsCreados     Lead[]        @relation("LeadCreadoPor")
+  leadsAsignados   Lead[]        @relation("LeadAsignadoA")
+  seguimientos     Seguimiento[]
+  reservas         Reserva[]
+  ventas           Venta[]
+  comisiones       Comision[]
+
+  @@index([empresaId])
+  @@map("usuarios")
+}
+
+model Proyecto {
+  id          String   @id @default(cuid())
+  empresaId   String   @map("empresa_id")
+  nombre      String
+  comuna      String?
+  descripcion String?
+  esPropio    Boolean  @default(true) @map("es_propio")
+  estado      String   @default("activo")
+  createdById String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  empresa   Empresa   @relation(fields: [empresaId], references: [id])
+  createdBy Usuario?  @relation("ProyectoCreadoPor", fields: [createdById], references: [id])
+  manzanas  Manzana[]
+  leads     Lead[]
+
+  @@index([empresaId])
+  @@map("proyectos")
+}
+
+model Manzana {
+  id         String   @id @default(cuid())
+  empresaId  String   @map("empresa_id")
+  proyectoId String   @map("proyecto_id")
+  codigo     String
+  orden      Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  empresa  Empresa  @relation(fields: [empresaId], references: [id])
+  proyecto Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  lotes    Lote[]
+
+  @@index([empresaId])
+  @@index([proyectoId])
+  @@map("manzanas")
+}
+
+model Lote {
+  id           String     @id @default(cuid())
+  empresaId    String     @map("empresa_id")
+  manzanaId    String     @map("manzana_id")
+  numero       String
+  superficieM2 Decimal?   @map("superficie_m2")
+  precioLista  Decimal?   @map("precio_lista")
+  estado       EstadoLote @default(disponible)
+  notas        String?
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  empresa  Empresa   @relation(fields: [empresaId], references: [id])
+  manzana  Manzana   @relation(fields: [manzanaId], references: [id], onDelete: Cascade)
+  reservas Reserva[]
+  ventas   Venta[]
+
+  @@index([empresaId])
+  @@index([manzanaId])
+  @@map("lotes")
+}
+
+model Lead {
+  id               String            @id @default(cuid())
+  empresaId        String            @map("empresa_id")
+  proyectoId       String?           @map("proyecto_id")
+  nombre           String
+  telefono         String?
+  email            String?
+  fuente           String?
+  categoria        CategoriaLead?
+  capacidadCredito CapacidadCredito? @map("capacidad_credito")
+  plazoEstimado    PlazoEstimado?    @map("plazo_estimado")
+  pieDisponible    Decimal?          @map("pie_disponible")
+  estadoPipeline   EstadoPipeline    @default(nuevo) @map("estado_pipeline")
+  assignedToId     String?           @map("assigned_to")
+  createdById      String?           @map("created_by")
+  metadata         Json?
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  empresa      Empresa       @relation(fields: [empresaId], references: [id])
+  proyecto     Proyecto?     @relation(fields: [proyectoId], references: [id])
+  assignedTo   Usuario?      @relation("LeadAsignadoA", fields: [assignedToId], references: [id])
+  createdBy    Usuario?      @relation("LeadCreadoPor", fields: [createdById], references: [id])
+  seguimientos Seguimiento[]
+  cliente      Cliente?
+  reservas     Reserva[]
+
+  @@index([empresaId])
+  @@index([estadoPipeline])
+  @@map("leads")
+}
+
+model Seguimiento {
+  id                 String          @id @default(cuid())
+  empresaId          String          @map("empresa_id")
+  leadId             String          @map("lead_id")
+  usuarioId          String?         @map("usuario_id")
+  tipo               TipoSeguimiento
+  nota               String?
+  fecha              DateTime        @default(now())
+  proximoSeguimiento DateTime?       @map("proximo_seguimiento")
+
+  empresa Empresa  @relation(fields: [empresaId], references: [id])
+  lead    Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@index([empresaId])
+  @@index([leadId])
+  @@map("seguimientos")
+}
+
+model Cliente {
+  id        String   @id @default(cuid())
+  empresaId String   @map("empresa_id")
+  leadId    String?  @unique @map("lead_id")
+  nombre    String
+  rut       String?
+  telefono  String?
+  email     String?
+  direccion String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  lead    Lead?   @relation(fields: [leadId], references: [id])
+  ventas  Venta[]
+
+  @@index([empresaId])
+  @@map("clientes")
+}
+
+model Reserva {
+  id               String        @id @default(cuid())
+  empresaId        String        @map("empresa_id")
+  loteId           String        @map("lote_id")
+  leadId           String        @map("lead_id")
+  usuarioId        String?       @map("usuario_id")
+  montoReserva     Decimal?      @map("monto_reserva")
+  fechaReserva     DateTime      @default(now()) @map("fecha_reserva")
+  fechaVencimiento DateTime?     @map("fecha_vencimiento")
+  estado           EstadoReserva @default(activa)
+
+  empresa Empresa  @relation(fields: [empresaId], references: [id])
+  lote    Lote     @relation(fields: [loteId], references: [id])
+  lead    Lead     @relation(fields: [leadId], references: [id])
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+  venta   Venta?
+
+  @@index([empresaId])
+  @@index([loteId])
+  @@index([leadId])
+  @@map("reservas")
+}
+
+model Venta {
+  id          String      @id @default(cuid())
+  empresaId   String      @map("empresa_id")
+  loteId      String      @map("lote_id")
+  clienteId   String      @map("cliente_id")
+  reservaId   String?     @unique @map("reserva_id")
+  precioVenta Decimal     @map("precio_venta")
+  formaPago   FormaPago   @map("forma_pago")
+  usuarioId   String?     @map("usuario_id")
+  estado      EstadoVenta @default(promesa)
+  fechaVenta  DateTime    @default(now()) @map("fecha_venta")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  empresa    Empresa    @relation(fields: [empresaId], references: [id])
+  lote       Lote       @relation(fields: [loteId], references: [id])
+  cliente    Cliente    @relation(fields: [clienteId], references: [id])
+  reserva    Reserva?   @relation(fields: [reservaId], references: [id])
+  usuario    Usuario?   @relation(fields: [usuarioId], references: [id])
+  planPago   PlanPago?
+  comisiones Comision[]
+
+  @@index([empresaId])
+  @@index([loteId])
+  @@map("ventas")
+}
+
+model PlanPago {
+  id          String   @id @default(cuid())
+  empresaId   String   @map("empresa_id")
+  ventaId     String   @unique @map("venta_id")
+  montoTotal  Decimal  @map("monto_total")
+  numCuotas   Int      @map("num_cuotas")
+  fechaInicio DateTime @map("fecha_inicio")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  venta   Venta   @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  cuotas  Cuota[]
+
+  @@index([empresaId])
+  @@map("planes_pago")
+}
+
+model Cuota {
+  id               String      @id @default(cuid())
+  empresaId        String      @map("empresa_id")
+  planPagoId       String      @map("plan_pago_id")
+  numero           Int
+  monto            Decimal
+  fechaVencimiento DateTime    @map("fecha_vencimiento")
+  fechaPago        DateTime?   @map("fecha_pago")
+  montoPagado      Decimal?    @map("monto_pagado")
+  estado           EstadoCuota @default(pendiente)
+
+  empresa  Empresa  @relation(fields: [empresaId], references: [id])
+  planPago PlanPago @relation(fields: [planPagoId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId])
+  @@index([planPagoId])
+  @@map("cuotas")
+}
+
+model Comision {
+  id         String         @id @default(cuid())
+  empresaId  String         @map("empresa_id")
+  ventaId    String         @map("venta_id")
+  usuarioId  String         @map("usuario_id")
+  porcentaje Decimal
+  monto      Decimal
+  estado     EstadoComision @default(pendiente)
+  fechaPago  DateTime?      @map("fecha_pago")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  venta   Venta   @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([empresaId])
+  @@index([ventaId])
+  @@map("comisiones")
+}
