@@ -4,15 +4,13 @@ import { requireUsuario } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { NewManzanaDialog } from "@/components/new-manzana-dialog";
 import { NewLoteDialog } from "@/components/new-lote-dialog";
-import { LoteEstadoSelect } from "@/components/lote-estado-select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { LoteBadgeGrid } from "@/components/lote-badge-grid";
+
+const LEYENDA = [
+  { label: "Disponible", className: "bg-emerald-100 dark:bg-emerald-900/40" },
+  { label: "Reservado", className: "bg-amber-100 dark:bg-amber-900/40" },
+  { label: "Vendido", className: "bg-rose-100 dark:bg-rose-900/40" },
+];
 
 export default async function ProyectoDetailPage({
   params,
@@ -51,9 +49,22 @@ export default async function ProyectoDetailPage({
         )}
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-lg font-medium">Manzanas y lotes</h2>
-        <NewManzanaDialog proyectoId={proyecto.id} />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 text-xs text-zinc-500">
+            {LEYENDA.map((item) => (
+              <span key={item.label} className="flex items-center gap-1.5">
+                <span
+                  className={`h-3 w-3 rounded-sm ${item.className}`}
+                  aria-hidden
+                />
+                {item.label}
+              </span>
+            ))}
+          </div>
+          <NewManzanaDialog proyectoId={proyecto.id} />
+        </div>
       </div>
 
       {proyecto.manzanas.length === 0 ? (
@@ -70,34 +81,15 @@ export default async function ProyectoDetailPage({
             {manzana.lotes.length === 0 ? (
               <p className="text-sm text-zinc-500">Sin lotes todavía.</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Lote</TableHead>
-                    <TableHead>Superficie (m²)</TableHead>
-                    <TableHead>Precio lista</TableHead>
-                    <TableHead>Estado</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {manzana.lotes.map((lote) => (
-                    <TableRow key={lote.id}>
-                      <TableCell>{lote.numero}</TableCell>
-                      <TableCell>
-                        {lote.superficieM2?.toString() ?? "—"}
-                      </TableCell>
-                      <TableCell>
-                        {lote.precioLista
-                          ? Number(lote.precioLista).toLocaleString("es-CL")
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <LoteEstadoSelect loteId={lote.id} estado={lote.estado} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <LoteBadgeGrid
+                lotes={manzana.lotes.map((l) => ({
+                  id: l.id,
+                  numero: l.numero,
+                  superficieM2: l.superficieM2?.toString() ?? null,
+                  precioLista: l.precioLista?.toString() ?? null,
+                  estado: l.estado,
+                }))}
+              />
             )}
           </div>
         ))
