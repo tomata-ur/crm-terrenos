@@ -20,15 +20,32 @@ export default async function ProyectoDetailPage({
   const { id } = await params;
   const usuario = await requireUsuario();
 
-  const proyecto = await prisma.proyecto.findFirst({
-    where: { id, empresaId: usuario.empresaId },
-    include: {
-      manzanas: {
-        orderBy: { orden: "asc" },
-        include: { lotes: { orderBy: { numero: "asc" } } },
+  const [proyecto, leads] = await Promise.all([
+    prisma.proyecto.findFirst({
+      where: { id, empresaId: usuario.empresaId },
+      include: {
+        manzanas: {
+          orderBy: { orden: "asc" },
+          include: {
+            lotes: {
+              orderBy: { numero: "asc" },
+              include: {
+                reservas: {
+                  where: { estado: "activa" },
+                  include: { lead: true },
+                },
+              },
+            },
+          },
+        },
       },
-    },
-  });
+    }),
+    prisma.lead.findMany({
+      where: { empresaId: usuario.empresaId },
+      orderBy: { nombre: "asc" },
+      select: { id: true, nombre: true },
+    }),
+  ]);
 
   if (!proyecto) notFound();
 
@@ -82,12 +99,19 @@ export default async function ProyectoDetailPage({
               <p className="text-sm text-zinc-500">Sin lotes todavía.</p>
             ) : (
               <LoteBadgeGrid
+                leads={leads}
                 lotes={manzana.lotes.map((l) => ({
                   id: l.id,
                   numero: l.numero,
                   superficieM2: l.superficieM2?.toString() ?? null,
                   precioLista: l.precioLista?.toString() ?? null,
                   estado: l.estado,
+                  reserva: l.reservas[0]
+                    ? {
+                        id: l.reservas[0].id,
+                        leadNombre: l.reservas[0].lead.nombre,
+                      }
+                    : null,
                 }))}
               />
             )}

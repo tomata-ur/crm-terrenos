@@ -63,3 +63,59 @@ export async function updateLoteEstado(loteId: string, estado: EstadoLote) {
 
   revalidatePath(`/dashboard/proyectos/${lote.manzana.proyectoId}`);
 }
+
+export async function createReserva(loteId: string, leadId: string) {
+  const usuario = await requireUsuario();
+
+  const lote = await prisma.lote.findFirst({
+    where: { id: loteId, empresaId: usuario.empresaId },
+    include: { manzana: true },
+  });
+  if (!lote) throw new Error("Lote no encontrado");
+  if (lote.estado !== "disponible") {
+    throw new Error("El lote no está disponible");
+  }
+
+  const lead = await prisma.lead.findFirst({
+    where: { id: leadId, empresaId: usuario.empresaId },
+  });
+  if (!lead) throw new Error("Lead no encontrado");
+
+  await prisma.$transaction([
+    prisma.reserva.create({
+      data: {
+        empresaId: usuario.empresaId,
+        loteId,
+        leadId,
+        usuarioId: usuario.id,
+        estado: "activa",
+      },
+    }),
+    prisma.lote.update({ where: { id: loteId }, data: { estado: "reservado" } }),
+  ]);
+
+  revalidatePath(`/dashboard/proyectos/${lote.manzana.proyectoId}`);
+}
+
+export async function cancelReserva(reservaId: string) {
+  const usuario = await requireUsuario();
+
+  const reserva = await prisma.reserva.findFirst({
+    where: { id: reservaId, empresaId: usuario.empresaId },
+    include: { lote: { include: { manzana: true } } },
+  });
+  if (!reserva) throw new Error("Reserva no encontrada");
+
+  await prisma.$transaction([
+    prisma.reserva.update({
+      where: { id: reservaId },
+      data: { estado: "cancelada" },
+    }),
+    prisma.lote.update({
+      where: { id: reserva.loteId },
+      data: { estado: "disponible" },
+    }),
+  ]);
+
+  revalidatePath(`/dashboard/proyectos/${reserva.lote.manzana.proyectoId}`);
+}
