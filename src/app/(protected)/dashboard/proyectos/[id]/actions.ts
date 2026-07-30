@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUsuario } from "@/lib/auth";
-import type { EstadoLote } from "@/generated/prisma/enums";
+import type { EstadoLote, FormaPago } from "@/generated/prisma/enums";
 
 export async function createManzana(formData: FormData) {
   const usuario = await requireUsuario();
@@ -118,4 +118,61 @@ export async function cancelReserva(reservaId: string) {
   ]);
 
   revalidatePath(`/dashboard/proyectos/${reserva.lote.manzana.proyectoId}`);
+}
+
+export async function createVenta(
+  reservaId: string,
+  precioVenta: number,
+  formaPago: FormaPago
+) {
+  const usuario = await requireUsuario();
+
+  const reserva = await prisma.reserva.findFirst({
+    where: { id: reservaId, empresaId: usuario.empresaId, estado: "activa" },
+    include: { lote: { include: { manzana: true } }, lead: true },
+  });
+  if (!reserva) throw new Error("Reserva no encontrada o no activa");
+
+  let cliente = await prisma.cliente.findUnique({
+    where: { leadId: reserva.leadId },
+  });
+  if (!cliente) {
+    cliente = await prisma.cliente.create({
+      data: {
+        empresaId: usuario.empresaId,
+        leadId: reserva.leadId,
+        nombre: reserva.lead.nombre,
+        telefono: reserva.lead.telefono,
+        email: reserva.lead.email,
+      },
+    });
+  }
+
+  const [venta] = await prisma.$transaction([
+    prisma.venta.create({
+      data: {
+        empresaId: usuario.empresaId,
+        loteId: reserva.loteId,
+        clienteId: cliente.id,
+        reservaId: reserva.id,
+        precioVenta,
+        formaPago,
+        usuarioId: usuario.id,
+        estado: "promesa",
+      },
+    }),
+    prisma.reserva.update({
+      where: { id: reserva.id },
+      data: { estado: "convertida" },
+    }),
+    prisma.lote.update({
+      where: { id: reserva.loteId },
+      data: { estado: "vendido" },
+    }),
+  ]);
+
+  revalidatePath(`/dashboard/proyectos/${reserva.lote.manzana.proyectoId}`);
+  revalidatePath("/dashboard/ventas");
+
+  return venta.id;
 }

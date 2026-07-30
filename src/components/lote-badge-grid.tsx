@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Sheet,
   SheetContent,
@@ -16,13 +17,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { LoteEstadoSelect } from "@/components/lote-estado-select";
 import {
   createReserva,
   cancelReserva,
+  createVenta,
 } from "@/app/(protected)/dashboard/proyectos/[id]/actions";
+import { FORMAS_PAGO } from "@/lib/venta-labels";
 import { cn } from "@/lib/utils";
-import type { EstadoLote } from "@/generated/prisma/enums";
+import type { EstadoLote, FormaPago } from "@/generated/prisma/enums";
 
 type Lote = {
   id: string;
@@ -99,7 +104,12 @@ function LoteDetail({
   leads: { id: string; nombre: string }[];
   onChanged: () => void;
 }) {
+  const router = useRouter();
   const [leadId, setLeadId] = useState<string | undefined>();
+  const [precioVenta, setPrecioVenta] = useState(
+    lote.precioLista ? String(lote.precioLista) : ""
+  );
+  const [formaPago, setFormaPago] = useState<FormaPago>("pie_y_cuotas");
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -107,7 +117,7 @@ function LoteDetail({
       <SheetHeader>
         <SheetTitle>Lote {lote.numero}</SheetTitle>
         <SheetDescription>
-          Detalle, estado y reserva del lote.
+          Detalle, estado, reserva y venta del lote.
         </SheetDescription>
       </SheetHeader>
       <div className="flex flex-col gap-4 px-4">
@@ -175,24 +185,75 @@ function LoteDetail({
         )}
 
         {lote.estado === "reservado" && lote.reserva && (
-          <div className="flex flex-col gap-2 rounded-lg border p-3">
-            <p className="text-sm font-medium">Reservado para</p>
-            <p className="text-sm">{lote.reserva.leadNombre}</p>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isPending}
-              onClick={() => {
-                const reservaId = lote.reserva!.id;
-                startTransition(async () => {
-                  await cancelReserva(reservaId);
-                  onChanged();
-                });
-              }}
-            >
-              Cancelar reserva
-            </Button>
-          </div>
+          <>
+            <div className="flex flex-col gap-2 rounded-lg border p-3">
+              <p className="text-sm font-medium">Reservado para</p>
+              <p className="text-sm">{lote.reserva.leadNombre}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => {
+                  const reservaId = lote.reserva!.id;
+                  startTransition(async () => {
+                    await cancelReserva(reservaId);
+                    onChanged();
+                  });
+                }}
+              >
+                Cancelar reserva
+              </Button>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-lg border p-3">
+              <p className="text-sm font-medium">Convertir en venta</p>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="precioVenta">Precio de venta</Label>
+                <Input
+                  id="precioVenta"
+                  type="number"
+                  value={precioVenta}
+                  onChange={(e) => setPrecioVenta(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="formaPago">Forma de pago</Label>
+                <Select
+                  items={FORMAS_PAGO}
+                  value={formaPago}
+                  onValueChange={(value) => setFormaPago(value as FormaPago)}
+                >
+                  <SelectTrigger id="formaPago" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FORMAS_PAGO.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>
+                        {f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                size="sm"
+                disabled={!precioVenta || isPending}
+                onClick={() => {
+                  const reservaId = lote.reserva!.id;
+                  startTransition(async () => {
+                    const ventaId = await createVenta(
+                      reservaId,
+                      Number(precioVenta),
+                      formaPago
+                    );
+                    router.push(`/dashboard/ventas/${ventaId}`);
+                  });
+                }}
+              >
+                Registrar venta
+              </Button>
+            </div>
+          </>
         )}
       </div>
     </>
